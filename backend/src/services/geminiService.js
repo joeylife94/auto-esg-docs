@@ -37,7 +37,7 @@ const generatePrompt = (reportData) => {
     2. 주요 성과와 지표
     3. 향후 목표와 계획
     
-    각 섹션은 2-3문장으로 간결하게 작성하되, 구체적인 내용을 포함해주세요.
+    각 섹션은 2-3문단으로 구체적이고 전문적으로 작성해주세요.
   `;
   
   if (customPrompt) {
@@ -54,29 +54,111 @@ const generatePrompt = (reportData) => {
  * @returns {Promise<string>} - 생성된 보고서 내용
  */
 exports.generateContent = async (reportData) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  console.log('\n====== Gemini API 호출 시작 ======');
+  console.log(`🔍 요청 ID: ${requestId}`);
+  console.log(`⏰ 시작 시간: ${new Date().toISOString()}`);
+  console.log('📋 요청 데이터:', JSON.stringify(reportData, null, 2));
+  
   try {
-    // API 키가 없는 경우 샘플 응답 반환
+    // API 키 검증
     if (!API_KEY) {
-      console.warn('GEMINI_API_KEY is not set. Returning sample content.');
-      return getSampleContent(reportData);
+      console.log('⚠️  GEMINI_API_KEY가 설정되지 않음 - 샘플 모드로 전환');
+      console.log('💡 실제 AI 응답을 받으려면 .env 파일에 GEMINI_API_KEY를 설정하세요');
+      
+      const sampleContent = getSampleContent(reportData);
+      const duration = Date.now() - startTime;
+      
+      console.log('✅ 샘플 응답 생성 완료');
+      console.log(`⏱️  처리 시간: ${duration}ms`);
+      console.log(`📄 응답 길이: ${sampleContent.length}자`);
+      console.log('====== 샘플 모드 완료 ======\n');
+      
+      return sampleContent;
     }
+    
+    console.log('🔑 API Key 확인됨 - AI 모드로 진행');
+    console.log(`🔑 API Key: ${API_KEY.substring(0, 10)}...${API_KEY.substring(API_KEY.length - 4)}`);
     
     // 프롬프트 생성
     const prompt = generatePrompt(reportData);
+    console.log('📝 생성된 프롬프트:');
+    console.log('-------------------');
+    console.log(prompt);
+    console.log('-------------------');
     
-    // Gemini 모델 설정
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Gemini 모델 설정 - 최신 모델명 사용
+    console.log('🤖 Gemini 모델 초기화 중...');
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    console.log('🚀 Gemini API 호출 중...');
+    const apiStartTime = Date.now();
     
     // 컨텐츠 생성
     const result = await model.generateContent(prompt);
+    const apiDuration = Date.now() - apiStartTime;
+    
+    console.log(`✅ API 호출 완료 (${apiDuration}ms)`);
+    console.log('📥 API 응답 처리 중...');
+    
     const response = await result.response;
     const text = response.text();
     
+    const totalDuration = Date.now() - startTime;
+    
+    console.log('🎉 AI 보고서 생성 성공!');
+    console.log(`📊 응답 통계:`);
+    console.log(`   - 총 처리 시간: ${totalDuration}ms`);
+    console.log(`   - API 호출 시간: ${apiDuration}ms`);
+    console.log(`   - 응답 길이: ${text.length}자`);
+    console.log(`   - 단어 수 (추정): ${text.split(' ').length}개`);
+    console.log('📄 생성된 내용 미리보기:');
+    console.log('-------------------');
+    console.log(text.substring(0, 200) + (text.length > 200 ? '...' : ''));
+    console.log('-------------------');
+    console.log('====== Gemini API 호출 완료 ======\n');
+    
     return text;
+    
   } catch (error) {
-    console.error('Error calling Gemini API:', error);
-    // 에러 발생 시 샘플 응답 반환
-    return getSampleContent(reportData);
+    const duration = Date.now() - startTime;
+    
+    console.log('❌ Gemini API 호출 실패');
+    console.log(`⏱️  실패까지 소요 시간: ${duration}ms`);
+    console.log('🔍 오류 상세 정보:');
+    
+    if (error.status) {
+      console.log(`   - HTTP 상태: ${error.status}`);
+    }
+    if (error.message) {
+      console.log(`   - 오류 메시지: ${error.message}`);
+    }
+    if (error.code) {
+      console.log(`   - 오류 코드: ${error.code}`);
+    }
+    
+    console.log('📊 전체 오류 객체:', error);
+    
+    // 특정 오류 유형별 처리
+    if (error.status === 403) {
+      console.log('🔑 API 키 권한 문제 - API 키를 확인하세요');
+    } else if (error.status === 429) {
+      console.log('🚫 API 호출 한도 초과 - 잠시 후 다시 시도하세요');
+    } else if (error.status === 400) {
+      console.log('📝 요청 형식 문제 - 프롬프트를 확인하세요');
+    }
+    
+    console.log('🔄 샘플 응답으로 대체합니다...');
+    
+    const sampleContent = getSampleContent(reportData);
+    
+    console.log('✅ 샘플 응답 생성 완료');
+    console.log(`📄 샘플 응답 길이: ${sampleContent.length}자`);
+    console.log('====== API 오류 처리 완료 ======\n');
+    
+    return sampleContent;
   }
 };
 
@@ -88,6 +170,9 @@ exports.generateContent = async (reportData) => {
  * @returns {string} - 샘플 보고서 내용
  */
 const getSampleContent = (reportData) => {
+  const timestamp = new Date().toISOString();
+  console.log(`📋 샘플 콘텐츠 생성 중... (${timestamp})`);
+  
   const { category, companyName, year, tone } = reportData;
   
   const toneStyle = {
@@ -133,5 +218,9 @@ const getSampleContent = (reportData) => {
     이를 위해 자연 기반 솔루션 투자와 생태계 복원 프로젝트를 확대할 계획입니다.`,
   };
   
-  return contents[category] || `${companyName}의 ${year}년 ESG 보고서입니다. ${toneStyle[tone]} 내용이 여기에 표시됩니다.`;
+  const selectedContent = contents[category] || `${companyName}의 ${year}년 ESG 보고서입니다. ${toneStyle[tone]} 내용이 여기에 표시됩니다.`;
+  
+  console.log(`✅ 샘플 콘텐츠 준비 완료 - 카테고리: ${category}, 길이: ${selectedContent.length}자`);
+  
+  return selectedContent;
 }; 
